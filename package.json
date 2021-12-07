@@ -2,6 +2,6 @@
   "name": "tailwindui-storybook",
   "dependencies": {
     "lodash": "^4.17.21",
-    "playwright": "^1.9.2"
+    "playwright": "^1.17.1"
   }
 }

@@ -8,12 +8,8 @@ const password = (process.env.password || "").trim();
 
 // Make sure email and password are provided
 if (!email || !password) {
-  console.log(
-    "[ERROR] please provide email and password of your tailwind ui account as environment variable."
-  );
-  console.log(
-    "example: email=myemail@example.com password=mypassword node tailwindui.js react"
-  );
+  console.log("[ERROR] please provide email and password of your tailwind ui account as environment variable.");
+  console.log("example: email=myemail@example.com password=mypassword node tailwindui.js react");
   process.exit(1);
 }
 
@@ -36,14 +32,12 @@ async function login(page, email, password) {
 async function getSections(page) {
   const sections = await page.evaluate(([]) => {
     let sections = [];
-    document
-      .querySelectorAll('#components [href^="/components"]')
-      .forEach((el) => {
-        const title = el.querySelector("p:nth-child(1)").innerText;
-        const components = el.querySelector("p:nth-child(2)").innerText;
-        const url = el.href;
-        sections.push({ title, componentsCount: parseInt(components), url });
-      });
+    document.querySelectorAll('#components [href^="/components"]').forEach((el) => {
+      const title = el.querySelector("p:nth-child(1)").innerText;
+      const components = el.querySelector("p:nth-child(2)").innerText;
+      const url = el.href;
+      sections.push({ title, componentsCount: parseInt(components), url });
+    });
     return Promise.resolve(sections);
   }, []);
 
@@ -51,17 +45,19 @@ async function getSections(page) {
 }
 
 async function getComponents(page, sectionUrl, type = "html") {
+  console.log(`[INFO] fetching page`, sectionUrl, type);
   // Go to section url
   await page.goto(sectionUrl);
 
+  console.log("[INFO] fetching react toggle..");
   // Select react code
   await page.waitForSelector('[x-model="activeSnippet"]');
   await page.evaluate(
     ([type]) => {
       document.querySelectorAll('[x-model="activeSnippet"]').forEach((el) => {
         el.value = type;
-        const evt = document.createEvent("HTMLEvents");
-        evt.initEvent("change", false, true);
+        // const evt = document.createEvent("HTMLEvents");
+        const evt = new Event("change", { bubbles: false, cancelable: true });
         el.dispatchEvent(evt);
       });
     },
@@ -78,16 +74,14 @@ async function getComponents(page, sectionUrl, type = "html") {
 
   // Wait until codeblock is visible
   await page.waitForSelector(`[x-ref="codeBlock${type}"]`);
-
   const components = await page.evaluate(
     ([type]) => {
       let components = [];
       document.querySelectorAll('section[id^="component-"]').forEach((el) => {
-        const title = el.querySelector("header h2").innerText;
-
-        const component = el.querySelector(`[x-ref="codeBlock${type}"]`)
-          .innerText;
+        const title = el.querySelector(`h2[id^="heading-"]`).innerText;
+        const component = el.querySelector(`[x-ref="codeBlock${type}"]`).innerText;
         components.push({ title, codeblocks: { [type]: component } });
+        console.log(`Component: ${title} downlowded successfuly`);
       });
       return Promise.resolve(components);
     },
@@ -102,6 +96,7 @@ async function getComponents(page, sectionUrl, type = "html") {
 
 async function run() {
   const [, , componentType] = process.argv;
+  const errors = [];
 
   if (!componentType) {
     console.error("[ERROR] please specify component type (html/react/vue).");
@@ -128,24 +123,17 @@ async function run() {
     await login(page, email, password);
   } catch (e) {
     const maskPassword = password.replace(/.{4}$/g, "*".repeat(4));
-    console.log(
-      `[ERROR] login failed: ${e.message} (email: ${email}, pasword: ${maskPassword})`
-    );
+    console.log(`[ERROR] login failed: ${e.message} (email: ${email}, pasword: ${maskPassword})`);
     process.exit(1);
   }
 
-  console.log(`[INFO] fetching sections..`);
   let sections = await getSections(page).catch((e) => {
     console.log("[ERROR] getSections failed:", e);
   });
 
-  const sumComponents = sections
-    .map((s) => s.componentsCount)
-    .reduce((a, b) => parseInt(a) + parseInt(b), [0]);
+  const sumComponents = sections.map((s) => s.componentsCount).reduce((a, b) => parseInt(a) + parseInt(b), [0]);
 
-  console.log(
-    `[INFO] ${sections.length} sections found (${sumComponents} components)`
-  );
+  console.log(`[INFO] ${sections.length} sections found (${sumComponents} components)`);
 
   for (const i in sections) {
     const { title, componentsCount, url } = sections[i];
@@ -159,8 +147,8 @@ async function run() {
     try {
       components = await getComponents(page, url, componentType);
     } catch (e) {
-      console.log("[ERROR] getComponent failed:", title, e.message);
-      process.exit(1);
+      // console.log("[ERROR] getComponent failed:", title, e.message);
+      errors.push(title);
     }
 
     sections[i].components = components;
